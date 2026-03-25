@@ -676,6 +676,10 @@
         body.light-theme #memberOverPlanCard { background: linear-gradient(135deg, rgba(245,158,11,0.07), rgba(234,88,12,0.04)) !important; border-color: rgba(245,158,11,0.25) !important; }
         body.light-theme #mopTableHead th { background: #f1f5f9 !important; color: #1e293b !important; border-bottom-color: rgba(245,158,11,0.3) !important; }
         body.light-theme #mopTableBody td { color: #1e293b; border-bottom-color: #e2e8f0; }
+        /* Member-wise Task Progress – light theme */
+        body.light-theme #memberProgressCard { background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04)) !important; border-color: rgba(99,102,241,0.2) !important; }
+        body.light-theme #mwpTable thead th { background: #e2e8f0 !important; color: #1e293b !important; border-bottom-color: rgba(99,102,241,0.3) !important; }
+        body.light-theme #mwpTableBody td { color: #1e293b; border-bottom-color: #e2e8f0; }
 
         /* Light theme: DQ card sticky headers */
         body.light-theme .dq-card thead { background: #e2e8f0 !important; }
@@ -1713,6 +1717,64 @@
 
         <!-- Tab 2: Work Item Progress -->
         <div class="tab-content" id="tabContent2" style="display: none;">
+
+        <!-- Member-wise Task Progress -->
+        <div class="dashboard-card" id="memberProgressCard" style="margin-bottom: 16px; padding: 12px; background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08)); border: 1px solid rgba(99,102,241,0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+                <div>
+                    <h3 style="color:#a5b4fc; font-size:1rem; margin:0 0 2px 0;">👥 Member-wise Task Progress</h3>
+                    <p style="color:#64748b; font-size:0.62rem; margin:0;">Developers &amp; Testers · All assigned Dev/Test tasks · Sprint elapsed progress vs completion %</p>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <span id="mwpDelayCount"  style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.35);color:#f87171;font-size:0.65rem;padding:2px 8px;border-radius:10px;font-weight:600;">0 delayed</span>
+                    <span id="mwpOnTrackCount" style="background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.35);color:#34d399;font-size:0.65rem;padding:2px 8px;border-radius:10px;font-weight:600;">0 on track</span>
+                    <span id="mwpSprintPctBadge" style="background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.35);color:#a5b4fc;font-size:0.65rem;padding:2px 8px;border-radius:10px;font-weight:600;">Sprint: 0% elapsed</span>
+                </div>
+            </div>
+            <!-- Summary row -->
+            <div class="summary-row" style="margin-bottom:10px; gap:6px; flex-wrap:wrap;">
+                <div class="summary-stat" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);padding:6px;min-width:80px;flex:1;">
+                    <div class="value" id="mwpTotalMembers" style="color:#a5b4fc;font-size:1.1rem;">0</div>
+                    <div class="label" style="font-size:0.55rem;">👤 Members</div>
+                </div>
+                <div class="summary-stat" style="background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.3);padding:6px;min-width:80px;flex:1;">
+                    <div class="value" id="mwpTotalOrigEst" style="color:#fbbf24;font-size:1.1rem;">0h</div>
+                    <div class="label" style="font-size:0.55rem;">📋 Total Est.</div>
+                </div>
+                <div class="summary-stat" style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.3);padding:6px;min-width:80px;flex:1;">
+                    <div class="value" id="mwpTotalCompleted" style="color:#34d399;font-size:1.1rem;">0h</div>
+                    <div class="label" style="font-size:0.55rem;">✅ Total Completed</div>
+                </div>
+                <div class="summary-stat" style="background:rgba(6,182,212,0.15);border-color:rgba(6,182,212,0.3);padding:6px;min-width:80px;flex:1;">
+                    <div class="value" id="mwpTotalRemaining" style="color:#22d3ee;font-size:1.1rem;">0h</div>
+                    <div class="label" style="font-size:0.55rem;">⏳ Remaining</div>
+                </div>
+                <div class="summary-stat" style="background:rgba(168,85,247,0.15);border-color:rgba(168,85,247,0.3);padding:6px;min-width:80px;flex:1;">
+                    <div class="value" id="mwpTeamCompPct" style="color:#c4b5fd;font-size:1.1rem;">0%</div>
+                    <div class="label" style="font-size:0.55rem;">🏁 Team Completion</div>
+                </div>
+            </div>
+            <!-- Table -->
+            <div style="overflow-x:auto;">
+                <table id="mwpTable" style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+                    <thead style="background:#0f172a;position:sticky;top:0;z-index:1;">
+                        <tr>
+                            <th style="padding:7px 8px;text-align:left;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Member</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Discipline</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Tasks</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Original Est.</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Completed</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Remaining</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Completion %</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Sprint Elapsed</th>
+                            <th style="padding:7px 8px;text-align:center;color:#94a3b8;font-size:0.65rem;font-weight:600;border-bottom:2px solid rgba(99,102,241,0.4);white-space:nowrap;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mwpTableBody"></tbody>
+                </table>
+            </div>
+            <div id="noMwpData" style="display:none;text-align:center;color:#94a3b8;padding:12px;font-size:0.75rem;">No developer or tester task data found</div>
+        </div>
 
         <!-- Weekly Progress Dashboard -->
         <div class="dashboard-card" style="margin-bottom: 16px; padding: 12px; background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(99,102,241,0.1)); border: 1px solid rgba(59,130,246,0.3);">
@@ -4937,6 +4999,7 @@
             // Capacity stats
             renderCapacityStats();
             renderMemberWiseOverPlan();
+            renderMemberWiseProgress();
             
             // Reset lazy-loaded sections
             document.getElementById('reqListContent').style.display = 'none';
@@ -5382,6 +5445,164 @@
         let membersCapSortField = 'name';
         let membersCapSortDir = 'asc';
         
+        // ========== MEMBER-WISE TASK PROGRESS ==========
+        function renderMemberWiseProgress() {
+            const tbody    = document.getElementById('mwpTableBody');
+            const noData   = document.getElementById('noMwpData');
+            if (!tbody) return;
+
+            // Sprint elapsed % — how far through the sprint are we today
+            let sprintElapsedPct = 0;
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            if (storedSprintStartDate && storedSprintEndDate) {
+                const start = new Date(storedSprintStartDate); start.setHours(0,0,0,0);
+                const end   = new Date(storedSprintEndDate);   end.setHours(0,0,0,0);
+                const total = (end - start) / 86400000 + 1;
+                const elapsed = Math.min(total, Math.max(0, (now - start) / 86400000 + 1));
+                sprintElapsedPct = total > 0 ? Math.round((elapsed / total) * 100) : 0;
+            }
+
+            // Only Dev + Test members
+            const devOrTestMembers = (capacityData.members || []).filter(m =>
+                (m.devCapacityPerDay > 0) || (m.testCapacityPerDay > 0)
+            );
+
+            if (devOrTestMembers.length === 0) {
+                tbody.innerHTML = '';
+                if (noData) noData.style.display = 'block';
+                return;
+            }
+            if (noData) noData.style.display = 'none';
+
+            // Build per-member stats
+            const rows = devOrTestMembers.map(member => {
+                const memberNameLower = (member.name || '').toLowerCase().trim();
+
+                // Match all tasks assigned to this member (Dev + Test discipline only)
+                const memberTasks = tasks.filter(t => {
+                    const disc = (t.fields['Microsoft.VSTS.Common.Discipline'] || '').toLowerCase().trim();
+                    if (disc !== 'development' && disc !== 'test') return false;
+                    const assignedTo = (t.fields['System.AssignedTo']?.displayName || '').toLowerCase().trim();
+                    if (!assignedTo || !memberNameLower) return false;
+                    if (assignedTo === memberNameLower) return true;
+                    if (assignedTo.includes(memberNameLower) || memberNameLower.includes(assignedTo)) return true;
+                    const uniqueName = (t.fields['System.AssignedTo']?.uniqueName || '').toLowerCase();
+                    if (member.uniqueName && uniqueName &&
+                        (uniqueName === member.uniqueName.toLowerCase() || uniqueName.includes(member.uniqueName.toLowerCase()))) return true;
+                    return false;
+                });
+
+                const origEst   = memberTasks.reduce((s, t) => s + (t.fields['Microsoft.VSTS.Scheduling.OriginalEstimate'] || 0), 0);
+                const completed = memberTasks.reduce((s, t) => s + (t.fields['Microsoft.VSTS.Scheduling.CompletedWork']    || 0), 0);
+                const remaining = memberTasks.reduce((s, t) => s + (t.fields['Microsoft.VSTS.Scheduling.RemainingWork']    || 0), 0);
+                const compPct   = origEst > 0 ? (completed / origEst) * 100 : (completed > 0 ? 100 : 0);
+
+                let discLabel = '';
+                if (member.devCapacityPerDay > 0 && member.testCapacityPerDay > 0) discLabel = 'Dev + Test';
+                else if (member.devCapacityPerDay > 0) discLabel = 'Developer';
+                else discLabel = 'Tester';
+
+                return {
+                    name: member.name,
+                    discipline: discLabel,
+                    taskCount: memberTasks.length,
+                    origEst:   Math.round(origEst   * 100) / 100,
+                    completed: Math.round(completed * 100) / 100,
+                    remaining: Math.round(remaining * 100) / 100,
+                    compPct:   Math.round(compPct   * 10)  / 10
+                };
+            });
+
+            // Sort: delayed first (lowest compPct relative to sprint elapsed), then by name
+            rows.sort((a, b) => {
+                const aGap = sprintElapsedPct - a.compPct;
+                const bGap = sprintElapsedPct - b.compPct;
+                if (bGap !== aGap) return bGap - aGap;
+                return a.name.localeCompare(b.name);
+            });
+
+            // Team totals
+            const teamOrigEst   = rows.reduce((s, r) => s + r.origEst, 0);
+            const teamCompleted = rows.reduce((s, r) => s + r.completed, 0);
+            const teamRemaining = rows.reduce((s, r) => s + r.remaining, 0);
+            const teamCompPct   = teamOrigEst > 0 ? Math.round((teamCompleted / teamOrigEst) * 100) : 0;
+
+            const delayedRows  = rows.filter(r => r.origEst > 0 && r.compPct < sprintElapsedPct);
+            const onTrackRows  = rows.filter(r => r.origEst === 0 || r.compPct >= sprintElapsedPct);
+
+            // Update summary
+            const el = id => document.getElementById(id);
+            if (el('mwpTotalMembers'))  el('mwpTotalMembers').textContent  = rows.length;
+            if (el('mwpTotalOrigEst'))  el('mwpTotalOrigEst').textContent  = fmtH(teamOrigEst) + 'h';
+            if (el('mwpTotalCompleted')) el('mwpTotalCompleted').textContent = fmtH(teamCompleted) + 'h';
+            if (el('mwpTotalRemaining')) el('mwpTotalRemaining').textContent = fmtH(teamRemaining) + 'h';
+            if (el('mwpTeamCompPct'))   el('mwpTeamCompPct').textContent   = teamCompPct + '%';
+            if (el('mwpDelayCount'))    el('mwpDelayCount').textContent    = delayedRows.length + ' delayed';
+            if (el('mwpOnTrackCount'))  el('mwpOnTrackCount').textContent  = onTrackRows.length + ' on track';
+            if (el('mwpSprintPctBadge')) el('mwpSprintPctBadge').textContent = 'Sprint: ' + sprintElapsedPct + '% elapsed';
+
+            const tdBase = 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.72rem;vertical-align:middle;';
+
+            tbody.innerHTML = rows.map(r => {
+                const isDelayed   = r.origEst > 0 && r.compPct < sprintElapsedPct;
+                const isNoWork    = r.origEst === 0;
+                const gap         = Math.round(sprintElapsedPct - r.compPct);
+
+                // Status pill
+                let statusHtml;
+                if (isNoWork) {
+                    statusHtml = `<span style="background:rgba(148,163,184,0.2);color:#94a3b8;border:1px solid rgba(148,163,184,0.3);padding:2px 8px;border-radius:10px;font-size:0.6rem;font-weight:600;">— No Tasks</span>`;
+                } else if (r.compPct >= 100) {
+                    statusHtml = `<span style="background:rgba(16,185,129,0.25);color:#34d399;border:1px solid rgba(16,185,129,0.45);padding:2px 8px;border-radius:10px;font-size:0.6rem;font-weight:600;">🏁 Done</span>`;
+                } else if (isDelayed) {
+                    statusHtml = `<span style="background:rgba(239,68,68,0.2);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:2px 8px;border-radius:10px;font-size:0.6rem;font-weight:600;">🔴 Delayed −${gap}%</span>`;
+                } else {
+                    statusHtml = `<span style="background:rgba(16,185,129,0.2);color:#34d399;border:1px solid rgba(16,185,129,0.4);padding:2px 8px;border-radius:10px;font-size:0.6rem;font-weight:600;">✅ On Track</span>`;
+                }
+
+                // Discipline badge
+                const discColor = r.discipline === 'Developer' ? '#60a5fa'
+                                : r.discipline === 'Tester'    ? '#34d399'
+                                :                                '#c4b5fd';
+
+                // Progress bar: completion vs sprint elapsed
+                const compBarW    = Math.min(100, r.compPct).toFixed(1);
+                const elapsedBarW = Math.min(100, sprintElapsedPct).toFixed(1);
+                const compBarColor = r.compPct >= sprintElapsedPct
+                    ? 'linear-gradient(90deg,#10b981,#34d399)'
+                    : 'linear-gradient(90deg,#ef4444,#f87171)';
+
+                const progressBar = isNoWork ? '' : `
+                    <div style="margin-top:4px;position:relative;background:rgba(255,255,255,0.07);border-radius:4px;height:7px;overflow:visible;" title="Completed: ${r.compPct}% | Sprint elapsed: ${sprintElapsedPct}%">
+                        <div style="width:${compBarW}%;background:${compBarColor};height:100%;border-radius:4px;transition:width 0.4s;"></div>
+                        ${sprintElapsedPct > 0 && sprintElapsedPct < 100 ? `<div style="position:absolute;top:-2px;left:${elapsedBarW}%;width:2px;height:11px;background:#fbbf24;border-radius:1px;" title="Sprint elapsed: ${sprintElapsedPct}%"></div>` : ''}
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:0.5rem;color:#475569;margin-top:1px;">
+                        <span style="color:${r.compPct >= sprintElapsedPct ? '#34d399' : '#f87171'};">${r.compPct}% done</span>
+                        <span style="color:#fbbf24;">${sprintElapsedPct}% sprint</span>
+                    </div>`;
+
+                const rowHover = isDelayed
+                    ? `onmouseover="this.style.background='rgba(239,68,68,0.07)'" onmouseout="this.style.background='transparent'"`
+                    : `onmouseover="this.style.background='rgba(99,102,241,0.05)'" onmouseout="this.style.background='transparent'"`;
+
+                return `<tr ${rowHover}>
+                    <td style="${tdBase}color:#e2e8f0;font-weight:500;">${r.name}</td>
+                    <td style="${tdBase}text-align:center;">
+                        <span style="background:rgba(99,102,241,0.15);color:${discColor};border:1px solid rgba(99,102,241,0.25);padding:2px 7px;border-radius:8px;font-size:0.6rem;font-weight:600;">${r.discipline}</span>
+                    </td>
+                    <td style="${tdBase}text-align:center;color:#94a3b8;">${r.taskCount}</td>
+                    <td style="${tdBase}text-align:center;color:#fbbf24;font-weight:600;">${fmtH(r.origEst)}h</td>
+                    <td style="${tdBase}text-align:center;color:#34d399;font-weight:600;">${fmtH(r.completed)}h</td>
+                    <td style="${tdBase}text-align:center;color:#22d3ee;font-weight:600;">${fmtH(r.remaining)}h</td>
+                    <td style="${tdBase}text-align:center;min-width:120px;">${isNoWork ? '<span style="color:#475569;">—</span>' : progressBar}</td>
+                    <td style="${tdBase}text-align:center;color:#fbbf24;font-weight:600;">${sprintElapsedPct}%</td>
+                    <td style="${tdBase}text-align:center;">${statusHtml}</td>
+                </tr>`;
+            }).join('');
+        }
+
         // ========== MEMBER-WISE OVER PLAN ==========
         function renderMemberWiseOverPlan() {
             const data = (capacityData.memberWiseOverPlan || []);
