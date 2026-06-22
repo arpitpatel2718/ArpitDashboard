@@ -1,0 +1,2193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TFS Query Explorer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2435;
+    --surface3: #252b3b;
+    --border: #2e3548;
+    --border2: #3a4158;
+    --accent: #4f8ef7;
+    --accent2: #7c5cfc;
+    --accent-glow: rgba(79,142,247,0.15);
+    --text: #e8ecf4;
+    --text2: #8b93a8;
+    --text3: #5a6278;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* Layout */
+  .app { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; }
+
+  header {
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+  }
+  .logo {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+  header p  { font-size: 12px; color: var(--text2); }
+
+  .main { display: grid; grid-template-columns: 300px 1fr; height: calc(100vh - 57px); overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .section-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text3); margin-bottom: 8px;
+  }
+  label { font-size: 13px; color: var(--text2); display: block; margin-bottom: 5px; }
+  input[type="text"], input[type="password"], textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); font-family: var(--font);
+    font-size: 13px; padding: 8px 10px; outline: none; transition: border 0.15s;
+  }
+  input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  .pat-wrapper { position: relative; }
+  .pat-toggle {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--text3);
+    font-size: 13px; padding: 2px;
+  }
+  .pat-toggle:hover { color: var(--text2); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 16px; border-radius: var(--radius-sm); font-size: 13px;
+    font-weight: 500; cursor: pointer; border: none; transition: all 0.15s;
+    font-family: var(--font);
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff; width: 100%;
+  }
+  .btn-primary:hover { background: #3a7be8; }
+  .btn-primary:disabled { background: var(--surface3); color: var(--text3); cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--surface3); border-color: var(--border2); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text3); flex-shrink: 0;
+  }
+  .status-dot.ok { background: var(--green); box-shadow: 0 0 6px rgba(52,211,153,0.5); }
+  .status-dot.err { background: var(--red); }
+
+  .connection-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text2); }
+
+  /* Report chat area */
+  .report-area {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px;
+  }
+  .report-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+    background: var(--surface3); border: 1px solid var(--border2);
+    color: var(--text2); cursor: pointer; transition: all 0.15s;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Content area */
+  .content { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .content-scroll { padding: 24px 28px; display: flex; flex-direction: column; gap: 24px; flex: 1; min-height: 0; overflow-y: auto; }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; color: var(--text3);
+    text-align: center;
+  }
+  .empty-icon { font-size: 48px; opacity: 0.3; }
+  .empty-state h2 { font-size: 18px; color: var(--text2); font-weight: 500; }
+  .empty-state p  { font-size: 13px; max-width: 320px; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+  }
+  .stat-card .s-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-card .s-value { font-size: 22px; font-weight: 600; color: var(--text); }
+  .stat-card .s-sub   { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  /* Table */
+  .table-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: visible;
+  }
+  .table-header {
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; background: var(--surface);
+  }
+  .table-title { font-size: 14px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+  .table-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+  .search-input {
+    padding: 6px 10px; font-size: 12px; width: 180px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); outline: none;
+  }
+  .search-input:focus { border-color: var(--accent); }
+
+  .tbl-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+  .tbl-scroll.fullscreen-scroll { max-height: none; flex: 1; min-height: 0; }
+
+  /* Table filter bar */
+  .tbl-filter-bar {
+    padding: 10px 18px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    background: var(--surface2);
+  }
+  .tbl-filter-bar select {
+    background: var(--surface3); border: 1px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 12px;
+    padding: 5px 8px; outline: none; cursor: pointer; max-width: 160px;
+    font-family: var(--font);
+  }
+  .tbl-filter-bar select:focus { border-color: var(--accent); }
+  .tbl-filter-bar select.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+  .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 3px 8px; border-radius: 20px;
+    background: var(--accent-glow); border: 1px solid rgba(79,142,247,0.35);
+    color: var(--accent); white-space: nowrap;
+  }
+  .filter-chip-x {
+    cursor: pointer; opacity: 0.7; font-size: 12px; line-height: 1;
+    background: none; border: none; color: var(--accent); padding: 0;
+  }
+  .filter-chip-x:hover { opacity: 1; }
+  .tbl-filter-clear {
+    font-size: 11px; color: var(--text3); cursor: pointer; padding: 3px 8px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: none; white-space: nowrap;
+  }
+  .tbl-filter-clear:hover { color: var(--text); border-color: var(--border2); }
+
+  /* Table fullscreen modal */
+  .table-modal-overlay {
+    position: fixed; inset: 0; z-index: 1001;
+    background: rgba(10,12,20,0.92);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: stretch; justify-content: stretch;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    padding: 20px;
+  }
+  .table-modal-overlay.open { opacity: 1; pointer-events: all; }
+  .table-modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 14px; width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    transform: scale(0.97); transition: transform 0.2s; overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  }
+  .table-modal-overlay.open .table-modal { transform: scale(1); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; z-index: 2; }
+  thead tr { background: var(--surface2); }
+  th {
+    padding: 10px 14px; text-align: left; font-weight: 500;
+    color: var(--text2); font-size: 12px; white-space: nowrap;
+    border-bottom: 1px solid var(--border); cursor: pointer; user-select: none;
+  }
+  th:hover { color: var(--text); }
+  th.sorted { color: var(--accent); }
+  td {
+    padding: 9px 14px; border-bottom: 1px solid var(--border);
+    color: var(--text); white-space: nowrap; max-width: 260px;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  .badge {
+    display: inline-block; font-size: 11px; padding: 2px 8px;
+    border-radius: 20px; font-weight: 500;
+  }
+  .badge-bug { background: rgba(248,113,113,0.15); color: #f87171; }
+  .badge-task { background: rgba(79,142,247,0.15); color: #4f8ef7; }
+  .badge-story { background: rgba(52,211,153,0.15); color: #34d399; }
+  .badge-feature { background: rgba(251,191,36,0.15); color: #fbbf24; }
+  .badge-epic { background: rgba(124,92,252,0.15); color: #7c5cfc; }
+  .badge-default { background: var(--surface3); color: var(--text2); }
+
+  .link-id { color: var(--accent); font-weight: 500; cursor: pointer; text-decoration: none; }
+  .link-id:hover { text-decoration: underline; }
+
+  /* Charts grid */
+  .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px;
+  }
+  .chart-card h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 14px; }
+  .chart-container { position: relative; height: 220px; cursor: pointer; }
+
+  /* Pivot */
+  .pivot-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .pivot-header { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .pivot-controls { display: flex; gap: 10px; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--border); align-items: center; }
+  .pivot-controls label { margin-bottom: 0; min-width: 60px; }
+  .pivot-controls select {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); padding: 6px 10px; font-size: 13px; outline: none;
+  }
+  .pivot-controls select:focus { border-color: var(--accent); }
+  .pivot-scroll { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+
+  /* AI report section */
+  .report-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .report-section-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .report-section-body { padding: 18px; }
+
+  /* Loader */
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border2); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 12px 18px; font-size: 13px;
+    color: var(--text); z-index: 999; opacity: 0; transform: translateY(10px);
+    transition: all 0.25s; pointer-events: none; max-width: 320px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: rgba(52,211,153,0.4); }
+  .toast.error   { border-color: rgba(248,113,113,0.4); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+  }
+
+  /* Chart card maximize button */
+  .chart-card { position: relative; }
+  .chart-card:hover .chart-maximize-btn { opacity: 1; }
+  .chart-maximize-btn {
+    position: absolute; top: 12px; right: 12px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text2);
+    font-size: 12px; padding: 3px 7px; cursor: pointer;
+    opacity: 0; transition: opacity 0.15s, background 0.15s;
+    line-height: 1.4; z-index: 2;
+  }
+  .chart-maximize-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--accent); }
+
+  /* Chart modal */
+  .chart-modal-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(10,12,20,0.85);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .chart-modal-overlay.open { opacity: 1; pointer-events: all; }
+  .chart-modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 14px; width: 90vw; max-width: 1100px;
+    height: 80vh; max-height: 700px;
+    display: flex; flex-direction: column;
+    transform: scale(0.95); transition: transform 0.2s;
+    overflow: hidden;
+  }
+  .chart-modal-overlay.open .chart-modal { transform: scale(1); }
+  .chart-modal-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .chart-modal-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .chart-modal-close {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text2); font-size: 13px;
+    padding: 5px 12px; cursor: pointer; transition: all 0.15s;
+  }
+  .chart-modal-close:hover { background: var(--surface3); color: var(--text); border-color: var(--accent); }
+  .chart-modal-body {
+    flex: 1; padding: 24px; position: relative; min-height: 0;
+  }
+
+  /* Chart drill-down bottom panel */
+  .chart-drilldown-panel {
+    background: var(--surface); border-top: 2px solid var(--accent);
+    flex-shrink: 0;
+    animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  .chart-drilldown-header {
+    padding: 11px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface2); gap: 12px;
+  }
+  .chart-drilldown-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .chart-drilldown-meta { font-size: 11px; color: var(--text3); margin-left: 8px; }
+  .chart-drilldown-close {
+    background: var(--surface3); border: 1px solid var(--border2); color: var(--text2);
+    cursor: pointer; font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm);
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .chart-drilldown-close:hover { color: var(--text); border-color: var(--accent); }
+  .chart-drilldown-scroll { overflow-x: auto; max-height: 260px; overflow-y: auto; }
+  .chart-drilldown-panel table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .chart-drilldown-panel thead tr { background: var(--surface2); position: sticky; top: 0; z-index: 1; }
+  .chart-drilldown-panel th { padding: 8px 14px; text-align: left; font-weight: 500; color: var(--text2); font-size: 11px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .chart-drilldown-panel td { padding: 7px 14px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  .chart-drilldown-panel tr:last-child td { border-bottom: none; }
+  .chart-drilldown-panel tr:hover td { background: var(--surface2); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">TF</div>
+    <div style="flex:1;">
+      <h1>TFS Query Explorer</h1>
+      <p>Run queries · Analyze data · Generate reports</p>
+    </div>
+    <button class="btn btn-secondary btn-sm" id="refresh-btn" onclick="refreshData()" style="display:none;gap:5px;" title="Refresh data with current filters">
+      <span id="refresh-icon">↻</span> Refresh
+    </button>
+    <button class="btn btn-secondary btn-sm" id="reset-btn" onclick="resetAll()" style="display:none;gap:5px;color:var(--red);border-color:rgba(248,113,113,0.4);" title="Reset all settings and start fresh">
+      ⟳ Reset
+    </button>
+  </header>
+
+  <div class="main">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <div>
+        <div class="section-label">Connection</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div>
+            <label>Personal Access Token</label>
+            <div class="pat-wrapper">
+              <input type="password" id="pat-input" placeholder="Paste your TFS PAT…" oninput="savePAT()">
+              <button class="pat-toggle" onclick="togglePAT()" title="Show/hide">👁</button>
+            </div>
+          </div>
+          <div id="conn-status" class="connection-row">
+            <div class="status-dot" id="conn-dot"></div>
+            <span id="conn-text">Enter a PAT to connect</span>
+          </div>
+          <div id="pat-saved-hint" style="display:none;font-size:11px;color:var(--green);margin-top:-6px;">✓ PAT saved locally</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-label">Query</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div>
+            <label>TFS Query URL</label>
+            <input type="text" id="query-url" placeholder="https://tfs.../…/_queries?tempQueryId=…" oninput="saveQueryUrl()">
+          </div>
+          <button class="btn btn-primary" id="run-btn" onclick="runQuery()">
+            <span id="run-icon">▶</span> Run Query
+          </button>
+        </div>
+      </div>
+
+      <div id="report-panel" style="display:none;">
+        <div class="section-label">Generate Report</div>
+        <div class="report-area">
+          <div style="margin-bottom:8px;">
+            <label style="font-size:11px;color:var(--text3);">Anthropic API Key (for AI reports)</label>
+            <div class="pat-wrapper">
+              <input type="password" id="anthropic-key" placeholder="sk-ant-…" style="font-size:12px;">
+              <button class="pat-toggle" onclick="toggleAnthropicKey()" title="Show/hide">👁</button>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;">Stored locally. Never sent to any server other than Anthropic.</div>
+          </div>
+          <textarea id="report-prompt" placeholder="Describe your report in plain text…&#10;e.g. Show total original estimate per assignee, filter only Bug type items, and add a pie chart of states" rows="4" style="min-height:80px;"></textarea>
+          <button class="btn btn-primary" style="margin-top:10px;" onclick="generateReport()">
+            <span id="gen-report-icon">✦</span> Generate Report
+          </button>
+        </div>
+      </div>
+
+      <div id="export-panel" style="display:none;">
+        <div class="section-label">Export</div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <button class="btn btn-secondary btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨 Print / Save PDF</button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Main content -->
+    <main class="content" id="content">
+      <div class="content-scroll" id="content-scroll">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">🔍</div>
+          <h2>No query loaded yet</h2>
+          <p>Paste your TFS PAT and a query URL in the sidebar, then hit Run Query to load work items.</p>
+        </div>
+      </div>
+      <div class="chart-drilldown-panel" id="chart-drilldown-panel" style="display:none;"></div>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Table fullscreen modal -->
+<div class="table-modal-overlay" id="table-modal-overlay" onclick="closeTableModal(event)">
+  <div class="table-modal" id="table-modal-inner">
+    <!-- content injected dynamically -->
+  </div>
+</div>
+<div class="chart-modal-overlay" id="chart-modal-overlay" onclick="closeChartModal(event)">
+  <div class="chart-modal">
+    <div class="chart-modal-header">
+      <span class="chart-modal-title" id="chart-modal-title"></span>
+      <button class="chart-modal-close" onclick="closeChartModal()">✕ Close</button>
+    </div>
+    <div class="chart-modal-body">
+      <canvas id="chart-modal-canvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+let workItems = [];
+let allFields = [];
+let dynamicFieldMap = {}; // maps camelCase key -> { label, apiField, type }
+let sortCol = null, sortAsc = true;
+let filterText = '';
+let colFilters = {}; // { fieldKey: selectedValue }
+let charts = {};
+
+// ── PAT persistence ──────────────────────────────────────────────────────────
+
+const ANTHROPIC_KEY = 'tfs_explorer_anthropic_key';
+
+function toggleAnthropicKey() {
+  const el = document.getElementById('anthropic-key');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function getAnthropicKey() {
+  const el = document.getElementById('anthropic-key');
+  const val = el ? el.value.trim() : '';
+  if (val) {
+    localStorage.setItem(ANTHROPIC_KEY, val);
+    return val;
+  }
+  // Fall back to localStorage
+  const saved = localStorage.getItem(ANTHROPIC_KEY) || '';
+  if (el && !el.value.trim() && saved) el.value = saved;
+  return saved;
+}
+
+
+const QUERY_KEY = 'tfs_explorer_query_url';
+
+function loadSavedSettings() {
+  const savedPat = localStorage.getItem(PAT_KEY);
+  if (savedPat) {
+    document.getElementById('pat-input').value = savedPat;
+    document.getElementById('conn-dot').className = 'status-dot ok';
+    document.getElementById('conn-text').textContent = 'PAT loaded from storage';
+    document.getElementById('pat-saved-hint').style.display = 'block';
+  }
+  const savedQuery = localStorage.getItem(QUERY_KEY);
+  if (savedQuery) {
+    document.getElementById('query-url').value = savedQuery;
+  }
+  const savedAnthropicKey = localStorage.getItem(ANTHROPIC_KEY);
+  if (savedAnthropicKey) {
+    const el = document.getElementById('anthropic-key');
+    if (el) el.value = savedAnthropicKey;
+  }
+}
+
+function savePAT() {
+  const pat = document.getElementById('pat-input').value.trim();
+  const hint = document.getElementById('pat-saved-hint');
+  if (pat) {
+    localStorage.setItem(PAT_KEY, pat);
+    hint.style.display = 'block';
+  } else {
+    localStorage.removeItem(PAT_KEY);
+    hint.style.display = 'none';
+  }
+}
+
+function saveQueryUrl() {
+  const url = document.getElementById('query-url').value.trim();
+  if (url) localStorage.setItem(QUERY_KEY, url);
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function getAuth() {
+  const el = document.getElementById('pat-input');
+  let pat = el ? el.value.trim() : '';
+  if (!pat) pat = localStorage.getItem(PAT_KEY) || '';
+  if (!pat) return null;
+  // Re-populate field if it was blank
+  if (el && !el.value.trim()) el.value = pat;
+  return 'Basic ' + btoa(':' + pat);
+}
+
+function togglePAT() {
+  const el = document.getElementById('pat-input');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function setChip(text) {
+  document.getElementById('report-prompt').value = text;
+}
+
+function setBusy(busy) {
+  const btn = document.getElementById('run-btn');
+  const icon = document.getElementById('run-icon');
+  btn.disabled = busy;
+  icon.innerHTML = busy ? '<span class="spinner"></span>' : '▶';
+}
+
+function parseQueryId(url) {
+  // tempQueryId param
+  const m1 = url.match(/[?&]tempQueryId=([0-9a-f-]{36})/i);
+  if (m1) return { id: m1[1], isTemp: true };
+  // savedQueryId or just a guid in path
+  const m2 = url.match(/[?&]queryId=([0-9a-f-]{36})/i);
+  if (m2) return { id: m2[1], isTemp: false };
+  // GUID anywhere
+  const m3 = url.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (m3) return { id: m3[1], isTemp: true };
+  return null;
+}
+
+function parseBaseAndProject(url) {
+  // https://host/tfs/Collection/Project/_queries/...
+  const m = url.match(/^(https?:\/\/[^/]+\/tfs\/[^/]+)\/([^/_][^/]*)(?:\/_|\/)?/i);
+  if (m) return { base: m[1], project: m[2] };
+  // fallback
+  const u = new URL(url);
+  const parts = u.pathname.split('/').filter(Boolean);
+  // tfs/Collection/Project
+  const tfsIdx = parts.findIndex(p => p.toLowerCase() === 'tfs');
+  if (tfsIdx >= 0 && parts.length > tfsIdx + 2) {
+    const base = u.origin + '/' + parts.slice(0, tfsIdx + 2).join('/');
+    const project = parts[tfsIdx + 2];
+    return { base, project };
+  }
+  return null;
+}
+
+function badgeClass(type) {
+  if (!type) return 'badge-default';
+  const t = type.toLowerCase();
+  if (t.includes('bug'))     return 'badge-bug';
+  if (t.includes('task'))    return 'badge-task';
+  if (t.includes('story'))   return 'badge-story';
+  if (t.includes('feature')) return 'badge-feature';
+  if (t.includes('epic'))    return 'badge-epic';
+  return 'badge-default';
+}
+
+// ── Query execution ──────────────────────────────────────────────────────────
+
+async function runQuery() {
+  const auth = getAuth();
+  if (!auth) { toast('Please enter your PAT first.', 'error'); return; }
+
+  const rawUrl = document.getElementById('query-url').value.trim();
+  if (!rawUrl) { toast('Please enter a query URL.', 'error'); return; }
+
+  const parsed = parseBaseAndProject(rawUrl);
+  if (!parsed) { toast('Could not parse TFS URL. Make sure it includes /tfs/Collection/Project.', 'error'); return; }
+
+  const qInfo = parseQueryId(rawUrl);
+  if (!qInfo) { toast('Could not find a query GUID in the URL.', 'error'); return; }
+
+  const { base, project } = parsed;
+  setBusy(true);
+
+  try {
+    // Step 1: get WIQL (for saved queries, run them; for temp we need the wiql text stored)
+    let wiql;
+    if (!qInfo.isTemp) {
+      const qRes = await fetch(
+        `${base}/${encodeURIComponent(project)}/_apis/wit/queries/${qInfo.id}?api-version=5.0&$expand=wiql`,
+        { headers: { Authorization: auth } }
+      );
+      if (!qRes.ok) throw new Error(`Query fetch: ${qRes.status} ${qRes.statusText}`);
+      const qData = await qRes.json();
+      wiql = qData.wiql;
+    } else {
+      // For tempQueryId we execute via the query endpoint directly
+      const qRes = await fetch(
+        `${base}/${encodeURIComponent(project)}/_apis/wit/queries/${qInfo.id}?api-version=5.0&$expand=wiql`,
+        { headers: { Authorization: auth } }
+      );
+      if (qRes.ok) {
+        const qData = await qRes.json();
+        wiql = qData.wiql;
+      } else {
+        // Try flat list fallback
+        wiql = `SELECT [System.Id],[System.Title],[System.WorkItemType],[System.State],[System.AssignedTo],[Microsoft.VSTS.Scheduling.OriginalEstimate],[Microsoft.VSTS.Scheduling.RemainingWork],[Microsoft.VSTS.Scheduling.CompletedWork],[System.IterationPath],[System.AreaPath] FROM WorkItems ORDER BY [System.Id]`;
+      }
+    }
+
+    if (!wiql) throw new Error('Could not retrieve WIQL from the query.');
+
+    // Step 2: execute WIQL
+    const execRes = await fetch(
+      `${base}/${encodeURIComponent(project)}/_apis/wit/wiql?api-version=5.0`,
+      {
+        method: 'POST',
+        headers: { Authorization: auth, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: wiql })
+      }
+    );
+    if (!execRes.ok) throw new Error(`WIQL exec: ${execRes.status} ${execRes.statusText}`);
+    const execData = await execRes.json();
+
+    // Detect query type: flat list vs tree/link query
+    const isTreeQuery = !!(execData.workItemRelations);
+
+    let ids = [];
+    let parentMap = {}; // childId -> parentId
+
+    if (isTreeQuery) {
+      // Tree/link queries return workItemRelations: [{rel, source:{id}, target:{id}}]
+      const relations = execData.workItemRelations || [];
+      const idSet = new Set();
+      relations.forEach(r => {
+        if (r.target && r.target.id) {
+          idSet.add(r.target.id);
+          if (r.source && r.source.id) {
+            parentMap[r.target.id] = r.source.id;
+          }
+        }
+        // Also include source roots (items with no parent, rel=null)
+        if (r.source && r.source.id) idSet.add(r.source.id);
+      });
+      ids = [...idSet];
+    } else {
+      ids = (execData.workItems || []).map(w => w.id);
+    }
+
+    if (ids.length === 0) {
+      renderEmpty('Query returned 0 work items.');
+      setBusy(false);
+      return;
+    }
+
+    // Step 3: Extract all column references from WIQL SELECT clause
+    // We request ALL fields present in the WIQL plus extras we always want
+    const wiqlFieldMatch = wiql.match(/SELECT\s+([\s\S]+?)\s+FROM/i);
+    let wiqlFields = [];
+    if (wiqlFieldMatch) {
+      wiqlFields = wiqlFieldMatch[1].split(',').map(f => f.trim().replace(/[\[\]]/g, ''));
+    }
+
+    // Core fields we always want
+    const coreFields = [
+      'System.Id','System.Title','System.WorkItemType','System.State',
+      'System.AssignedTo','System.CreatedDate','System.ChangedDate',
+      'System.IterationPath','System.AreaPath','System.Tags',
+      'Microsoft.VSTS.Scheduling.OriginalEstimate',
+      'Microsoft.VSTS.Scheduling.RemainingWork',
+      'Microsoft.VSTS.Scheduling.CompletedWork',
+      'Microsoft.VSTS.Common.Priority',
+      'Microsoft.VSTS.Common.Severity'
+    ];
+
+    // Merge: wiql fields + core fields, deduplicated
+    const requestedFieldsSet = new Set([...coreFields, ...wiqlFields.filter(f => f && f.includes('.'))]);
+    const FIELDS = [...requestedFieldsSet].join(',');
+
+    let allFetched = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      const batch = ids.slice(i, i + 200);
+      const bRes = await fetch(
+        `${base}/_apis/wit/workitems?ids=${batch.join(',')}&fields=${FIELDS}&api-version=5.0`,
+        { headers: { Authorization: auth } }
+      );
+      if (!bRes.ok) throw new Error(`Items fetch: ${bRes.status}`);
+      const bData = await bRes.json();
+      allFetched = allFetched.concat(bData.value || []);
+    }
+
+    if (!allFetched.length) { renderEmpty('Query returned 0 work items.'); setBusy(false); return; }
+
+    // Step 4: Dynamically detect all returned fields from actual API response
+    const sampleFields = new Set();
+    allFetched.forEach(wi => { if (wi.fields) Object.keys(wi.fields).forEach(k => sampleFields.add(k)); });
+
+    // Build dynamic field map: apiField -> { key, label, type }
+    // type: 'id'|'text'|'enum'|'numeric'|'date'|'path'|'tags'
+    function apiFieldMeta(apiField) {
+      const f = apiField.toLowerCase();
+      if (f === 'system.id') return { key: 'id', label: 'ID', type: 'id' };
+      if (f === 'system.title') return { key: 'title', label: 'Title', type: 'text' };
+      if (f === 'system.workitemtype') return { key: 'type', label: 'Type', type: 'enum' };
+      if (f === 'system.state') return { key: 'state', label: 'State', type: 'enum' };
+      if (f === 'system.assignedto') return { key: 'assignedTo', label: 'Assigned To', type: 'enum' };
+      if (f === 'system.createddate') return { key: 'createdDate', label: 'Created', type: 'date' };
+      if (f === 'system.changeddate') return { key: 'changedDate', label: 'Changed', type: 'date' };
+      if (f === 'system.iterationpath') return { key: 'iterationPath', label: 'Iteration', type: 'path' };
+      if (f === 'system.areapath') return { key: 'areaPath', label: 'Area Path', type: 'path' };
+      if (f === 'system.tags') return { key: 'tags', label: 'Tags', type: 'tags' };
+      if (f === 'microsoft.vsts.scheduling.originalestimate') return { key: 'originalEstimate', label: 'Orig Est', type: 'numeric' };
+      if (f === 'microsoft.vsts.scheduling.remainingwork') return { key: 'remainingWork', label: 'Remaining', type: 'numeric' };
+      if (f === 'microsoft.vsts.scheduling.completedwork') return { key: 'completedWork', label: 'Completed', type: 'numeric' };
+      if (f === 'microsoft.vsts.common.priority') return { key: 'priority', label: 'Priority', type: 'enum' };
+      if (f === 'microsoft.vsts.common.severity') return { key: 'severity', label: 'Severity', type: 'enum' };
+      // Generic: derive camelCase key from last segment, guess type
+      const segments = apiField.split('.');
+      const last = segments[segments.length - 1];
+      const key = last.charAt(0).toLowerCase() + last.slice(1).replace(/([A-Z])/g, c => c);
+      const label = last.replace(/([A-Z])/g, ' $1').trim();
+      const isNumeric = /estimate|work|hours|effort|story|points|count|size/i.test(last);
+      const isDate = /date|time/i.test(last);
+      const isPath = /path/i.test(last);
+      return { key, label, type: isNumeric ? 'numeric' : isDate ? 'date' : isPath ? 'path' : 'enum' };
+    }
+
+    dynamicFieldMap = {};
+    const usedKeys = new Set();
+    sampleFields.forEach(apiField => {
+      const meta = apiFieldMeta(apiField);
+      // Ensure unique keys
+      if (usedKeys.has(meta.key)) {
+        meta.key = meta.key + '_' + apiField.replace(/\./g,'_');
+      }
+      usedKeys.add(meta.key);
+      dynamicFieldMap[meta.key] = { ...meta, apiField };
+    });
+
+    // Map work items dynamically
+    workItems = allFetched.map(wi => {
+      const f = wi.fields || {};
+      const item = {};
+      Object.entries(dynamicFieldMap).forEach(([k, meta]) => {
+        const { apiField } = meta;
+        const raw = f[apiField];
+        if (meta.type === 'numeric') {
+          item[k] = parseFloat(raw) || 0;
+        } else if (meta.type === 'date') {
+          item[k] = (raw || '').slice(0, 10);
+        } else if (meta.type === 'id') {
+          item[k] = raw || '';
+        } else if (k === 'assignedTo') {
+          item[k] = (raw && (raw.displayName || raw)) || 'Unassigned';
+        } else {
+          item[k] = raw || '';
+        }
+      });
+      item._url = `${base}/${encodeURIComponent(project)}/_workitems/edit/${f['System.Id']}`;
+      // Tree hierarchy info
+      const itemId = f['System.Id'];
+      item._parentId = parentMap[itemId] || null;
+      return item;
+    });
+
+    // Compute tree depth level for each item
+    if (isTreeQuery) {
+      const idToItem = {};
+      workItems.forEach(w => { idToItem[w.id] = w; });
+      function getLevel(item) {
+        if (!item._parentId || !idToItem[item._parentId]) return 0;
+        return 1 + getLevel(idToItem[item._parentId]);
+      }
+      workItems.forEach(w => { w._level = getLevel(w); });
+    } else {
+      workItems.forEach(w => { w._level = 0; });
+    }
+
+    allFields = Object.keys(dynamicFieldMap);
+
+    document.getElementById('conn-dot').className = 'status-dot ok';
+    document.getElementById('conn-text').textContent = `Connected · ${workItems.length} items loaded`;
+
+    renderDashboard();
+    document.getElementById('report-panel').style.display = 'block';
+    document.getElementById('export-panel').style.display = 'block';
+    document.getElementById('refresh-btn').style.display = 'inline-flex';
+    document.getElementById('reset-btn').style.display = 'inline-flex';
+    toast(`Loaded ${workItems.length} work items`, 'success');
+
+  } catch (err) {
+    document.getElementById('conn-dot').className = 'status-dot err';
+    document.getElementById('conn-text').textContent = 'Connection failed';
+    toast('Error: ' + err.message, 'error');
+    console.error(err);
+  }
+  setBusy(false);
+}
+
+// ── Render dashboard ─────────────────────────────────────────────────────────
+
+function renderDashboard() {
+  const content = document.getElementById('content-scroll');
+  content.innerHTML = '';
+  destroyCharts();
+  // Clear drilldown state on fresh load
+  _drillFilter = null;
+  _drillState = { canvasId: null, labelIndex: null };
+
+  // ── Dynamic Stats ─────────────────────────────────────────────────────────
+  // Always show total count; add numeric fields that have any non-zero data
+  const stats = document.createElement('div');
+  stats.className = 'stats-bar';
+
+  let statsHtml = `<div class="stat-card"><div class="s-label">Work Items</div><div class="s-value">${workItems.length}</div><div class="s-sub">total items</div></div>`;
+
+  // Count unique assignees if field exists
+  if (dynamicFieldMap['assignedTo']) {
+    const uniq = new Set(workItems.map(w => w.assignedTo)).size;
+    statsHtml += `<div class="stat-card"><div class="s-label">Assignees</div><div class="s-value">${uniq}</div><div class="s-sub">unique</div></div>`;
+  }
+
+  // Numeric fields: show sum if data present
+  const numericFields = Object.values(dynamicFieldMap).filter(m => m.type === 'numeric');
+  numericFields.forEach(meta => {
+    const sum = workItems.reduce((s, w) => s + (w[meta.key] || 0), 0);
+    if (sum > 0) {
+      statsHtml += `<div class="stat-card"><div class="s-label">${meta.label}</div><div class="s-value">${sum.toFixed(1)}</div><div class="s-sub">hours</div></div>`;
+    }
+  });
+
+  // Tags count if present
+  if (dynamicFieldMap['tags']) {
+    const tagSet = new Set();
+    workItems.forEach(w => { if (w.tags) w.tags.split(';').forEach(t => { const tt = t.trim(); if (tt) tagSet.add(tt); }); });
+    if (tagSet.size > 0) {
+      statsHtml += `<div class="stat-card"><div class="s-label">Unique Tags</div><div class="s-value">${tagSet.size}</div><div class="s-sub">tags</div></div>`;
+    }
+  }
+
+  stats.innerHTML = statsHtml;
+  content.appendChild(stats);
+
+  // ── Dynamic Charts ────────────────────────────────────────────────────────
+  const cg = document.createElement('div');
+  cg.className = 'charts-grid';
+  cg.id = 'default-charts';
+  content.appendChild(cg);
+  renderDefaultCharts();
+
+  // ── Dynamic Table ─────────────────────────────────────────────────────────
+  renderTable(content);
+}
+
+function renderEmpty(msg) {
+  const content = document.getElementById('content-scroll');
+  content.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><h2>${msg}</h2></div>`;
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────────
+
+const PALETTE = ['#4f8ef7','#7c5cfc','#34d399','#fbbf24','#f87171','#60a5fa','#a78bfa','#6ee7b7','#fcd34d','#fca5a5','#38bdf8','#c084fc'];
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => c.destroy && c.destroy());
+  charts = {};
+}
+
+function groupBy(items, key) {
+  return items.reduce((acc, it) => {
+    const k = it[key] || 'Unknown';
+    acc[k] = (acc[k] || []);
+    acc[k].push(it);
+    return acc;
+  }, {});
+}
+
+function sumBy(items, key) {
+  const g = groupBy(items, key);
+  return Object.entries(g).map(([k, v]) => ({ label: k, value: v.reduce((s, i) => s + i[key.replace('By','')], 0) }));
+}
+
+function countBy(items, field) {
+  const g = groupBy(items, field);
+  return Object.entries(g).map(([k, v]) => ({ label: k, value: v.length })).sort((a,b) => b.value - a.value);
+}
+
+function makeCanvas(id) {
+  const c = document.createElement('canvas');
+  c.id = id;
+  return c;
+}
+
+function chartCard(title, canvasId) {
+  const card = document.createElement('div');
+  card.className = 'chart-card';
+  card.innerHTML = `
+    <h3>${title} <span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:4px;">click segment to drill down</span></h3>
+    <button class="chart-maximize-btn" onclick="openChartModal('${canvasId}', '${title.replace(/'/g,"\\'")}')">⤢ Expand</button>
+    <div class="chart-container"><canvas id="${canvasId}"></canvas></div>
+  `;
+  return card;
+}
+
+let modalChart = null;
+
+function openChartModal(sourceCanvasId, title) {
+  // Find the Chart.js instance for this canvas
+  const sourceChart = charts[sourceCanvasId] || reportCharts[sourceCanvasId];
+  if (!sourceChart) return;
+
+  document.getElementById('chart-modal-title').textContent = title;
+
+  // Destroy previous modal chart if any
+  if (modalChart) { modalChart.destroy(); modalChart = null; }
+
+  // Clone the chart config into the modal canvas
+  const modalCanvas = document.getElementById('chart-modal-canvas');
+  // Reset canvas size
+  modalCanvas.style.width = '100%';
+  modalCanvas.style.height = '100%';
+
+  // Deep-clone config from source chart
+  const cfg = sourceChart.config;
+  modalChart = new Chart(modalCanvas, {
+    type: cfg.type,
+    data: JSON.parse(JSON.stringify(cfg.data)),
+    options: {
+      ...JSON.parse(JSON.stringify(cfg.options || {})),
+      maintainAspectRatio: false,
+      plugins: {
+        ...((cfg.options && cfg.options.plugins) ? JSON.parse(JSON.stringify(cfg.options.plugins)) : {}),
+        legend: {
+          display: true,
+          labels: { color: '#8b93a8', font: { size: 13 } }
+        }
+      },
+      scales: cfg.type === 'doughnut' || cfg.type === 'pie' ? {} : {
+        x: { ticks: { color: '#8b93a8', font: { size: 12 } }, grid: { color: '#2e3548' } },
+        y: { ticks: { color: '#8b93a8', font: { size: 12 } }, grid: { color: '#2e3548' } }
+      }
+    }
+  });
+
+  const overlay = document.getElementById('chart-modal-overlay');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeChartModal(event) {
+  // If clicking overlay background (not the modal itself), close
+  if (event && event.target !== document.getElementById('chart-modal-overlay')) return;
+  const overlay = document.getElementById('chart-modal-overlay');
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  if (modalChart) { modalChart.destroy(); modalChart = null; }
+}
+
+// ── Chart drill-down ─────────────────────────────────────────────────────────
+
+// Track which canvas+labelIndex is currently shown so clicking same again toggles off
+let _drillState = { canvasId: null, labelIndex: null };
+
+function showChartDrilldown(canvasId, labelIndex) {
+  const chart = charts[canvasId] || reportCharts[canvasId];
+  if (!chart || !chart._drillMeta) return;
+
+  // Toggle off if same segment clicked again → clear filter
+  if (_drillState.canvasId === canvasId && _drillState.labelIndex === labelIndex) {
+    _drillState = { canvasId: null, labelIndex: null };
+    clearDrillFilter();
+    return;
+  }
+  _drillState = { canvasId, labelIndex };
+
+  const { groupField, fullLabels, isTags, isNumericGroup } = chart._drillMeta;
+  const clickedShortLabel = chart.data.labels[labelIndex];
+  const matchedLabel = (fullLabels && fullLabels[labelIndex]) || clickedShortLabel;
+
+  // Filter work items
+  let filtered = [];
+  if (isTags) {
+    filtered = workItems.filter(w => {
+      if (!w.tags) return false;
+      return w.tags.split(';').map(t => t.trim()).includes(matchedLabel);
+    });
+  } else if (isNumericGroup) {
+    filtered = workItems.filter(w => {
+      const val = w[groupField] || 'Unknown';
+      return val === matchedLabel || shortName(val) === clickedShortLabel;
+    });
+  } else {
+    filtered = workItems.filter(w => {
+      const val = String(w[groupField] || 'Unknown');
+      return val === matchedLabel || shortLabel(val) === clickedShortLabel || shortLabel2(val) === clickedShortLabel;
+    });
+  }
+
+  if (!filtered.length) { toast('No items match this selection.', ''); return; }
+
+  // Apply as a drilldown filter: highlight in Work Items table
+  _drillFilter = { items: filtered, label: matchedLabel, groupField };
+  renderRowsFiltered(filtered, matchedLabel, groupField);
+  // Scroll to the Work Items table
+  const tableWrap = document.getElementById('table-wrap');
+  if (tableWrap) tableWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toast(`Showing ${filtered.length} items for "${matchedLabel.length > 30 ? matchedLabel.slice(0,30)+'…' : matchedLabel}"`, 'success');
+}
+
+let _drillFilter = null;
+
+function clearDrillFilter() {
+  _drillFilter = null;
+  // Remove drilldown banner from table header if present
+  const banner = document.getElementById('drill-filter-banner');
+  if (banner) banner.remove();
+  renderRows();
+}
+
+function closeDrilldown() {
+  _drillState = { canvasId: null, labelIndex: null };
+  clearDrillFilter();
+}
+
+function renderRowsFiltered(filtered, label, groupField) {
+  // Inject a banner in the Work Items header to show the active drill filter
+  let banner = document.getElementById('drill-filter-banner');
+  const tableHeader = document.getElementById('tbl-header-row');
+  if (tableHeader && !banner) {
+    banner = document.createElement('div');
+    banner.id = 'drill-filter-banner';
+    banner.style.cssText = 'padding:8px 16px;background:rgba(79,142,247,0.1);border-bottom:1px solid rgba(79,142,247,0.3);display:flex;align-items:center;gap:10px;font-size:12px;color:var(--accent);';
+    tableHeader.parentNode.insertBefore(banner, tableHeader.nextSibling);
+  }
+  if (banner) {
+    const meta = groupField ? dynamicFieldMap[groupField] : null;
+    const fieldLabel = meta ? meta.label : groupField;
+    const shortLbl = label && label.length > 40 ? label.slice(0,40)+'…' : label;
+    banner.innerHTML = `<span>🔍</span><span><strong>${filtered.length} items</strong> — filtered by chart: ${fieldLabel ? `<em>${fieldLabel}</em> = ` : ''}"${shortLbl}"</span><button onclick="closeDrilldown()" style="margin-left:auto;background:none;border:1px solid rgba(79,142,247,0.4);border-radius:5px;color:var(--accent);cursor:pointer;padding:3px 10px;font-size:11px;font-family:var(--font);">✕ Clear</button>`;
+  }
+
+  // Override renderRows to use filtered set
+  const tbody = document.getElementById('wi-tbody');
+  if (!tbody) return;
+  const columns = window._tableColumns || Object.values(dynamicFieldMap);
+  const rc = document.getElementById('row-count');
+  if (rc) rc.textContent = `(${filtered.length} of ${workItems.length})`;
+
+  tbody.innerHTML = filtered.map(w => {
+    const level = w._level || 0;
+    const indent = level * 18;
+    const cells = columns.map(meta => {
+      const val = w[meta.key];
+      if (meta.key === 'id') {
+        return `<td style="padding-left:${8 + indent}px;white-space:nowrap;">
+          ${level > 0 ? `<span style="color:var(--text3);margin-right:4px;">${'└'.padStart(level,'·')}</span>` : ''}
+          <a class="link-id" href="${w._url}" target="_blank">${val}</a>
+        </td>`;
+      }
+      if (meta.key === 'title') return `<td title="${String(val||'').replace(/"/g,'&quot;')}" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;">${val || ''}</td>`;
+      if (meta.key === 'type') return `<td><span class="badge ${badgeClass(val)}">${val || ''}</span></td>`;
+      if (meta.type === 'numeric') return `<td style="text-align:right;">${(val > 0) ? Number(val).toFixed(1) : '—'}</td>`;
+      if (meta.type === 'path') {
+        const short = String(val || '').split('\\').pop();
+        return `<td title="${val}" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);">${short}</td>`;
+      }
+      if (meta.key === 'assignedTo') return `<td>${shortName(String(val || ''))}</td>`;
+      if (meta.type === 'tags') {
+        const tagStr = String(val || '');
+        return `<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);" title="${tagStr}">${tagStr}</td>`;
+      }
+      return `<td style="color:var(--text2);">${val !== undefined && val !== '' ? val : '—'}</td>`;
+    }).join('');
+    const rowStyle = level === 0 ? '' : `style="background:rgba(255,255,255,0.0${Math.min(level,4)})"`;
+    return `<tr ${rowStyle}>${cells}</tr>`;
+  }).join('');
+}
+
+function renderDefaultCharts() {
+  const cg = document.getElementById('default-charts');
+  if (!cg) return;
+  cg.innerHTML = '';
+  destroyCharts();
+
+  let chartIdx = 0;
+
+  function addChart(title, canvasId, buildFn) {
+    const card = chartCard(title, canvasId);
+    cg.appendChild(card);
+    setTimeout(() => buildFn(canvasId), 50);
+    chartIdx++;
+  }
+
+  // ── Enum fields → count charts ───────────────────────────────────────────
+  const enumFields = Object.values(dynamicFieldMap).filter(m => m.type === 'enum' && m.key !== 'id');
+
+  // Priority order for enum fields in charts
+  const enumPriority = ['type', 'state', 'assignedTo', 'priority', 'severity', 'iterationPath', 'areaPath'];
+  const sortedEnumFields = [
+    ...enumPriority.map(k => dynamicFieldMap[k]).filter(Boolean),
+    ...enumFields.filter(m => !enumPriority.includes(m.key))
+  ];
+
+  sortedEnumFields.forEach((meta, i) => {
+    const data = countBy(workItems, meta.key);
+    if (!data.length || (data.length === 1 && data[0].label === 'Unknown')) return;
+
+    const id = `ch-${meta.key}-${i}`;
+    const isMany = data.length > 5;
+    const fullLabels = data.slice(0, 12).map(d => d.label);
+    addChart(`Items by ${meta.label}`, id, (cid) => {
+      charts[cid] = new Chart(document.getElementById(cid), {
+        type: i === 0 ? 'doughnut' : 'bar',
+        data: {
+          labels: data.slice(0, 12).map(d => shortLabel2(d.label)),
+          datasets: [{ data: data.slice(0, 12).map(d => d.value), label: 'Count', backgroundColor: PALETTE, borderWidth: 0, borderRadius: 4 }]
+        },
+        options: {
+          indexAxis: (i > 0 && isMany) ? 'y' : 'x',
+          plugins: {
+            legend: { display: i === 0, labels: { color:'#8b93a8', font:{size:11} } },
+            tooltip: { callbacks: { title: ctx => fullLabels[ctx[0].dataIndex] || ctx[0].label } }
+          },
+          scales: i === 0 ? {} : {
+            x: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color:'#2e3548' } },
+            y: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color: isMany ? 'transparent' : '#2e3548' } }
+          },
+          maintainAspectRatio: false,
+          onClick: (evt, elements) => {
+            if (elements.length > 0) showChartDrilldown(cid, elements[0].index);
+          }
+        }
+      });
+      charts[cid]._drillMeta = { groupField: meta.key, fullLabels };
+    });
+  });
+
+  // ── Numeric fields → sum by assignee charts ───────────────────────────────
+  const numericFields = Object.values(dynamicFieldMap).filter(m => m.type === 'numeric');
+  numericFields.forEach((meta, i) => {
+    const hasData = workItems.some(w => (w[meta.key] || 0) > 0);
+    if (!hasData) return;
+
+    // Group by assignee if exists, else by type
+    const groupKey = dynamicFieldMap['assignedTo'] ? 'assignedTo' : (dynamicFieldMap['type'] ? 'type' : null);
+    if (!groupKey) return;
+
+    const groups = groupBy(workItems, groupKey);
+    const data = Object.entries(groups)
+      .map(([k, v]) => ({ label: k, value: parseFloat(v.reduce((s, it) => s + (it[meta.key] || 0), 0).toFixed(1)) }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => b.value - a.value).slice(0, 10);
+    if (!data.length) return;
+
+    const id = `ch-num-${meta.key}-${i}`;
+    const groupMeta = dynamicFieldMap[groupKey];
+    const fullLabels = data.map(d => d.label);
+    addChart(`${meta.label} by ${groupMeta.label} (hrs)`, id, (cid) => {
+      charts[cid] = new Chart(document.getElementById(cid), {
+        type: 'bar',
+        data: {
+          labels: data.map(d => shortName(d.label)),
+          datasets: [{ label: 'Hours', data: data.map(d => d.value), backgroundColor: PALETTE[i % PALETTE.length], borderRadius: 4 }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { title: ctx => fullLabels[ctx[0].dataIndex] || ctx[0].label } }
+          },
+          scales: {
+            x: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color:'#2e3548' } },
+            y: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { display: false } }
+          },
+          maintainAspectRatio: false,
+          onClick: (evt, elements) => {
+            if (elements.length > 0) showChartDrilldown(cid, elements[0].index);
+          }
+        }
+      });
+      charts[cid]._drillMeta = { groupField: groupKey, fullLabels, isNumericGroup: true, numericField: meta.key };
+    });
+  });
+
+  // ── Tags chart ────────────────────────────────────────────────────────────
+  if (dynamicFieldMap['tags']) {
+    const tagCounts = {};
+    workItems.forEach(w => {
+      if (w.tags) {
+        w.tags.split(';').forEach(t => {
+          const tt = t.trim();
+          if (tt) tagCounts[tt] = (tagCounts[tt] || 0) + 1;
+        });
+      }
+    });
+    const tagData = Object.entries(tagCounts)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value).slice(0, 12);
+
+    if (tagData.length > 1) {
+      const id = `ch-tags`;
+      const fullTagLabels = tagData.map(d => d.label);
+      addChart('Items by Tag', id, (cid) => {
+        charts[cid] = new Chart(document.getElementById(cid), {
+          type: 'bar',
+          data: {
+            labels: tagData.map(d => d.label.length > 16 ? d.label.slice(0,16)+'…' : d.label),
+            datasets: [{ label: 'Count', data: tagData.map(d => d.value), backgroundColor: PALETTE, borderRadius: 4 }]
+          },
+          options: {
+            indexAxis: tagData.length > 5 ? 'y' : 'x',
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { title: ctx => fullTagLabels[ctx[0].dataIndex] || ctx[0].label } }
+            },
+            scales: {
+              x: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color:'#2e3548' } },
+              y: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { display: tagData.length > 5 ? false : true, color:'#2e3548' } }
+            },
+            maintainAspectRatio: false,
+            onClick: (evt, elements) => {
+              if (elements.length > 0) showChartDrilldown(cid, elements[0].index);
+            }
+          }
+        });
+        charts[cid]._drillMeta = { groupField: 'tags', fullLabels: fullTagLabels, isTags: true };
+      });
+    }
+  }
+
+  // ── Path fields → count chart (iteration/area) ────────────────────────────
+  const pathFields = Object.values(dynamicFieldMap).filter(m => m.type === 'path');
+  pathFields.forEach((meta, i) => {
+    const data = countBy(workItems, meta.key).slice(0, 10);
+    if (!data.length || data.length < 2) return;
+    const id = `ch-path-${meta.key}-${i}`;
+    const fullLabels = data.map(d => d.label);
+    addChart(`Items by ${meta.label}`, id, (cid) => {
+      charts[cid] = new Chart(document.getElementById(cid), {
+        type: 'bar',
+        data: {
+          labels: data.map(d => shortLabel(d.label)),
+          datasets: [{ label: 'Count', data: data.map(d => d.value), backgroundColor: PALETTE.slice(4), borderRadius: 4 }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { title: ctx => fullLabels[ctx[0].dataIndex] || ctx[0].label } }
+          },
+          scales: {
+            x: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color:'#2e3548' } },
+            y: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { display: false } }
+          },
+          maintainAspectRatio: false,
+          onClick: (evt, elements) => {
+            if (elements.length > 0) showChartDrilldown(cid, elements[0].index);
+          }
+        }
+      });
+      charts[cid]._drillMeta = { groupField: meta.key, fullLabels };
+    });
+  });
+
+  if (chartIdx === 0) {
+    cg.innerHTML = `<div style="color:var(--text3);padding:20px;font-size:13px;">No chartable fields found in query results.</div>`;
+  }
+}
+
+function shortLabel2(s) {
+  if (!s) return 'Unknown';
+  return s.length > 16 ? s.slice(0,16)+'…' : s;
+}
+
+function shortName(name) {
+  if (!name || name === 'Unassigned') return name;
+  const parts = name.split(' ');
+  if (parts.length >= 2) return parts[0][0] + '. ' + parts[parts.length-1];
+  return name.length > 14 ? name.slice(0,14)+'…' : name;
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+
+function buildColumnOrder() {
+  const ordered = [];
+  const push = k => { if (dynamicFieldMap[k] && !ordered.find(c => c.key === k)) ordered.push(dynamicFieldMap[k]); };
+  push('id'); push('title'); push('type'); push('state'); push('assignedTo');
+  Object.values(dynamicFieldMap).filter(m => m.type === 'enum' && !['id','title','type','state','assignedTo'].includes(m.key)).forEach(m => ordered.push(m));
+  Object.values(dynamicFieldMap).filter(m => m.type === 'path').forEach(m => { if (!ordered.find(c => c.key === m.key)) ordered.push(m); });
+  Object.values(dynamicFieldMap).filter(m => m.type === 'numeric').forEach(m => { if (!ordered.find(c => c.key === m.key)) ordered.push(m); });
+  push('tags');
+  Object.values(dynamicFieldMap).filter(m => m.type === 'date').forEach(m => { if (!ordered.find(c => c.key === m.key)) ordered.push(m); });
+  return ordered;
+}
+
+function buildFilterBar(ordered) {
+  // Only offer dropdowns for enum and path fields (skip id, title, numeric, date, tags)
+  const filterable = ordered.filter(m => ['enum','path'].includes(m.type) && m.key !== 'id');
+  if (!filterable.length) return '';
+
+  const selects = filterable.map(m => {
+    const vals = [...new Set(workItems.map(w => String(w[m.key] || '')).filter(Boolean))].sort();
+    if (vals.length < 2) return '';
+    const isActive = colFilters[m.key] ? ' class="active"' : '';
+    const opts = vals.map(v => {
+      const display = m.type === 'path' ? v.split('\\').pop() : v;
+      const sel = colFilters[m.key] === v ? ' selected' : '';
+      return `<option value="${v.replace(/"/g,'&quot;')}"${sel}>${display}</option>`;
+    }).join('');
+    return `<select${isActive} onchange="setColFilter('${m.key}', this.value)" title="Filter by ${m.label}">
+      <option value="">All ${m.label}</option>${opts}
+    </select>`;
+  }).filter(Boolean).join('');
+
+  if (!selects) return '';
+  return `<div class="tbl-filter-bar" id="tbl-filter-bar">
+    ${selects}
+    <button class="tbl-filter-clear" onclick="clearAllFilters()" id="clear-filters-btn" style="display:${Object.keys(colFilters).length ? 'inline-block' : 'none'}">✕ Clear filters</button>
+  </div>`;
+}
+
+function renderTable(container) {
+  colFilters = {};
+  filterText = '';
+  const ordered = buildColumnOrder();
+  window._tableColumns = ordered;
+
+  const isTree = workItems.some(w => w._level > 0);
+  const treeBadge = isTree
+    ? `<span style="font-size:11px;background:rgba(124,92,252,0.15);color:#7c5cfc;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:500;">🌳 Tree</span>`
+    : `<span style="font-size:11px;background:rgba(79,142,247,0.15);color:#4f8ef7;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:500;">≡ Flat</span>`;
+
+  const headerCols = ordered.map(m => {
+    const align = m.type === 'numeric' ? ' style="text-align:right;"' : '';
+    return `<th onclick="sortTable('${m.key}')"${align}>${m.label}</th>`;
+  }).join('');
+
+  // Build filter dropdowns
+  const filterable = ordered.filter(m => ['enum','path'].includes(m.type) && m.key !== 'id');
+  const filterDropdowns = filterable.map(m => {
+    const vals = [...new Set(workItems.map(w => String(w[m.key] || '')).filter(Boolean))].sort();
+    if (vals.length < 2) return '';
+    const opts = vals.map(v => {
+      const display = m.type === 'path' ? v.split('\\').pop() : v;
+      return `<option value="${v.replace(/"/g,'&quot;')}">${display}</option>`;
+    }).join('');
+    return `<select onchange="setColFilter('${m.key}', this.value)"
+      style="background:var(--surface3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:12px;padding:5px 8px;outline:none;cursor:pointer;max-width:150px;font-family:var(--font);">
+      <option value="">All ${m.label}</option>${opts}
+    </select>`;
+  }).filter(Boolean).join('');
+
+  const wrap = document.createElement('div');
+  wrap.id = 'table-wrap';
+  wrap.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:visible;';
+
+  wrap.innerHTML = `
+    <!-- HEADER ROW -->
+    <div id="tbl-header-row" style="
+      padding:12px 16px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      background:var(--surface);
+      border-radius:10px 10px 0 0;
+    ">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <span style="font-size:14px;font-weight:600;color:var(--text);">Work Items</span>
+        ${treeBadge}
+        <span id="row-count" style="color:var(--text3);font-weight:400;font-size:12px;margin-left:4px;"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <input
+          id="tbl-search"
+          type="text"
+          placeholder="🔍  Search all columns…"
+          oninput="filterTable(this.value)"
+          style="
+            width:220px; padding:7px 11px; font-size:12px;
+            background:var(--surface2); border:1px solid var(--border2);
+            border-radius:6px; color:var(--text); outline:none;
+            font-family:var(--font);
+          "
+        >
+        <button onclick="openTableModal()" style="
+          display:inline-flex;align-items:center;gap:5px;
+          padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;
+          cursor:pointer;border:1.5px solid var(--accent);
+          background:rgba(79,142,247,0.12);color:var(--accent);
+          font-family:var(--font);white-space:nowrap;
+        ">⛶ Full Screen</button>
+        <button onclick="exportCSV()" style="
+          display:inline-flex;align-items:center;gap:5px;
+          padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;
+          cursor:pointer;border:1px solid var(--border2);
+          background:var(--surface2);color:var(--text2);
+          font-family:var(--font);white-space:nowrap;
+        ">⬇ CSV</button>
+      </div>
+    </div>
+
+    <!-- FILTER BAR -->
+    ${filterDropdowns ? `
+    <div id="tbl-filter-bar" style="
+      padding:9px 16px;border-bottom:1px solid var(--border);
+      display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+      background:var(--surface2);
+    ">
+      <span style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-right:2px;">Filter:</span>
+      ${filterDropdowns}
+      <button id="clear-filters-btn" onclick="clearAllFilters()" style="display:none;font-size:11px;color:var(--text3);cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;">✕ Clear all</button>
+    </div>` : ''}
+
+    <!-- ACTIVE FILTER CHIPS -->
+    <div id="filter-chips-row" style="display:none;padding:7px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--surface2);"></div>
+
+    <!-- TABLE -->
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto;">
+      <table id="wi-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead style="position:sticky;top:0;z-index:2;">
+          <tr style="background:var(--surface2);">${headerCols}</tr>
+        </thead>
+        <tbody id="wi-tbody"></tbody>
+      </table>
+    </div>
+  `;
+
+  container.appendChild(wrap);
+  renderRows();
+}
+
+function setColFilter(fieldKey, value) {
+  if (value) {
+    colFilters[fieldKey] = value;
+  } else {
+    delete colFilters[fieldKey];
+  }
+  updateFilterUI();
+  renderRows();
+  // also refresh modal if open
+  if (document.getElementById('table-modal-overlay').classList.contains('open')) {
+    renderRows('wi-tbody-modal');
+    syncModalFilterChips();
+  }
+}
+
+function clearAllFilters() {
+  colFilters = {};
+  filterText = '';
+  const s = document.getElementById('tbl-search');
+  if (s) s.value = '';
+  updateFilterUI();
+  renderRows();
+}
+
+function updateFilterUI() {
+  // Update select values in filter bar
+  const bar = document.getElementById('tbl-filter-bar');
+  if (bar) {
+    bar.querySelectorAll('select').forEach(sel => {
+      const match = sel.getAttribute('onchange').match(/'([^']+)'/);
+      const key = match ? match[1] : null;
+      if (key) {
+        sel.value = colFilters[key] || '';
+        sel.style.borderColor = colFilters[key] ? 'var(--accent)' : 'var(--border2)';
+        sel.style.color = colFilters[key] ? 'var(--accent)' : 'var(--text)';
+      }
+    });
+    const clearBtn = document.getElementById('clear-filters-btn');
+    if (clearBtn) clearBtn.style.display = Object.keys(colFilters).length ? 'inline-block' : 'none';
+  }
+
+  // Active filter chips
+  const chipsRow = document.getElementById('filter-chips-row');
+  if (chipsRow) {
+    const active = Object.entries(colFilters);
+    if (!active.length) {
+      chipsRow.style.display = 'none';
+      chipsRow.innerHTML = '';
+    } else {
+      const chips = active.map(([k, v]) => {
+        const meta = dynamicFieldMap[k];
+        const display = meta && meta.type === 'path' ? v.split('\\').pop() : v;
+        const label = meta ? meta.label : k;
+        return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 8px;border-radius:20px;background:rgba(79,142,247,0.12);border:1px solid rgba(79,142,247,0.35);color:var(--accent);">
+          ${label}: ${display}
+          <button onclick="setColFilter('${k}','')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0;line-height:1;">✕</button>
+        </span>`;
+      }).join('');
+      chipsRow.innerHTML = chips;
+      chipsRow.style.display = 'flex';
+    }
+  }
+}
+
+function renderRows(targetTbodyId) {
+  const tbodyId = targetTbodyId || 'wi-tbody';
+  const rcId = targetTbodyId ? 'row-count-modal' : 'row-count';
+  const columns = window._tableColumns || Object.values(dynamicFieldMap);
+  let items = [...workItems];
+
+  // Text search
+  if (filterText) {
+    const q = filterText.toLowerCase();
+    items = items.filter(w =>
+      Object.values(w).some(v => String(v || '').toLowerCase().includes(q))
+    );
+  }
+
+  // Column filters
+  Object.entries(colFilters).forEach(([key, val]) => {
+    if (val) items = items.filter(w => String(w[key] || '') === val);
+  });
+
+  if (sortCol) {
+    items.sort((a, b) => {
+      let av = a[sortCol], bv = b[sortCol];
+      if (typeof av === 'number') return sortAsc ? av - bv : bv - av;
+      av = String(av || '').toLowerCase(); bv = String(bv || '').toLowerCase();
+      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+  } else if (workItems.some(w => w._level > 0)) {
+    const idToItem = {};
+    items.forEach(w => { idToItem[w.id] = w; });
+    function treeSort(items) {
+      const roots = items.filter(w => !w._parentId || !idToItem[w._parentId]);
+      const childrenOf = {};
+      items.forEach(w => {
+        if (w._parentId && idToItem[w._parentId]) {
+          (childrenOf[w._parentId] = childrenOf[w._parentId] || []).push(w);
+        }
+      });
+      const result = [];
+      function walk(item) { result.push(item); (childrenOf[item.id] || []).forEach(walk); }
+      roots.forEach(walk);
+      items.forEach(w => { if (!result.includes(w)) result.push(w); });
+      return result;
+    }
+    items = treeSort(items);
+  }
+
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const rc = document.getElementById(rcId);
+  if (rc) rc.textContent = `(${items.length} of ${workItems.length})`;
+
+  tbody.innerHTML = items.map(w => {
+    const level = w._level || 0;
+    const indent = level * 18;
+    const cells = columns.map(meta => {
+      const val = w[meta.key];
+      if (meta.key === 'id') {
+        return `<td style="padding-left:${8 + indent}px;white-space:nowrap;">
+          ${level > 0 ? `<span style="color:var(--text3);margin-right:4px;">${'└'.padStart(level,'·')}</span>` : ''}
+          <a class="link-id" href="${w._url}" target="_blank">${val}</a>
+        </td>`;
+      }
+      if (meta.key === 'title') return `<td title="${String(val||'').replace(/"/g,'&quot;')}" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;">${val || ''}</td>`;
+      if (meta.key === 'type') return `<td><span class="badge ${badgeClass(val)}">${val || ''}</span></td>`;
+      if (meta.type === 'numeric') return `<td style="text-align:right;">${(val > 0) ? Number(val).toFixed(1) : '—'}</td>`;
+      if (meta.type === 'path') {
+        const short = String(val || '').split('\\').pop();
+        return `<td title="${val}" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);">${short}</td>`;
+      }
+      if (meta.key === 'assignedTo') return `<td>${shortName(String(val || ''))}</td>`;
+      if (meta.type === 'tags') {
+        const tagStr = String(val || '');
+        return `<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);" title="${tagStr}">${tagStr}</td>`;
+      }
+      return `<td style="color:var(--text2);">${val !== undefined && val !== '' ? val : '—'}</td>`;
+    }).join('');
+    const rowStyle = level === 0 ? '' : `style="background:rgba(255,255,255,0.0${Math.min(level,4)})"`;
+    return `<tr ${rowStyle}>${cells}</tr>`;
+  }).join('');
+}
+
+function sortTable(col) {
+  if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+  document.querySelectorAll('th').forEach(th => th.classList.remove('sorted'));
+  event.target.classList.add('sorted');
+  renderRows();
+}
+
+function filterTable(v) {
+  filterText = v;
+  renderRows();
+  // sync modal search if open
+  const ms = document.getElementById('tbl-search-modal');
+  if (ms && ms.value !== v) ms.value = v;
+}
+
+// ── Table fullscreen modal ────────────────────────────────────────────────────
+
+function openTableModal() {
+  const ordered = window._tableColumns || buildColumnOrder();
+  const isTree = workItems.some(w => w._level > 0);
+  const queryTypeBadge = isTree
+    ? `<span style="font-size:11px;background:rgba(124,92,252,0.15);color:#7c5cfc;padding:2px 8px;border-radius:20px;margin-left:8px;">🌳 Tree</span>`
+    : `<span style="font-size:11px;background:rgba(79,142,247,0.15);color:#4f8ef7;padding:2px 8px;border-radius:20px;margin-left:8px;">≡ Flat</span>`;
+
+  const headerCols = ordered.map(m => {
+    const align = m.type === 'numeric' ? ' style="text-align:right;"' : '';
+    return `<th onclick="sortTableModal('${m.key}')"${align}>${m.label}</th>`;
+  }).join('');
+
+  // Build filter dropdowns
+  const filterable = ordered.filter(m => ['enum','path'].includes(m.type) && m.key !== 'id');
+  const filterSelects = filterable.map(m => {
+    const vals = [...new Set(workItems.map(w => String(w[m.key] || '')).filter(Boolean))].sort();
+    if (vals.length < 2) return '';
+    const isActive = colFilters[m.key] ? ' class="active"' : '';
+    const opts = vals.map(v => {
+      const display = m.type === 'path' ? v.split('\\').pop() : v;
+      const sel = colFilters[m.key] === v ? ' selected' : '';
+      return `<option value="${v.replace(/"/g,'&quot;')}"${sel}>${display}</option>`;
+    }).join('');
+    return `<select${isActive} onchange="setColFilter('${m.key}', this.value)" title="Filter by ${m.label}">
+      <option value="">All ${m.label}</option>${opts}
+    </select>`;
+  }).filter(Boolean).join('');
+
+  const modal = document.getElementById('table-modal-inner');
+  modal.innerHTML = `
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;background:var(--surface2);">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <span style="font-size:15px;font-weight:700;color:var(--text);">Work Items</span>
+        ${queryTypeBadge}
+        <span id="row-count-modal" style="color:var(--text3);font-weight:400;font-size:12px;"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <input class="search-input" id="tbl-search-modal"
+          placeholder="🔍 Search all columns…"
+          oninput="filterTableModal(this.value)"
+          value="${filterText}"
+          style="width:280px;font-size:13px;padding:8px 12px;">
+        <button class="btn btn-secondary btn-sm" onclick="exportCSV()" style="white-space:nowrap;">⬇ CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="closeTableModal()" style="white-space:nowrap;">✕ Close</button>
+      </div>
+    </div>
+    ${filterSelects ? `<div class="tbl-filter-bar" style="flex-shrink:0;border-bottom:1px solid var(--border);">${filterSelects}
+      <button class="tbl-filter-clear" id="clear-filters-btn-modal" onclick="clearAllFilters()" style="display:${Object.keys(colFilters).length?'inline-block':'none'}">✕ Clear</button>
+    </div>` : ''}
+    <div id="filter-chips-row-modal" class="tbl-filter-bar" style="display:none;padding-top:6px;padding-bottom:6px;flex-shrink:0;border-bottom:1px solid var(--border);"></div>
+    <div class="tbl-scroll fullscreen-scroll" style="flex:1;min-height:0;overflow-y:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead style="position:sticky;top:0;z-index:2;"><tr style="background:var(--surface2);">${headerCols}</tr></thead>
+        <tbody id="wi-tbody-modal"></tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('table-modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderRows('wi-tbody-modal');
+  syncModalFilterChips();
+
+  // Focus the search box
+  setTimeout(() => {
+    const s = document.getElementById('tbl-search-modal');
+    if (s) s.focus();
+  }, 100);
+}
+
+function filterTableModal(v) {
+  filterText = v;
+  const s = document.getElementById('tbl-search');
+  if (s) s.value = v;
+  renderRows();
+  renderRows('wi-tbody-modal');
+  syncModalFilterChips();
+}
+
+function sortTableModal(col) {
+  if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+  renderRows('wi-tbody-modal');
+}
+
+function syncModalFilterChips() {
+  const chipsRow = document.getElementById('filter-chips-row-modal');
+  if (!chipsRow) return;
+  const activeFilters = Object.entries(colFilters);
+  if (!activeFilters.length) { chipsRow.style.display = 'none'; chipsRow.innerHTML = ''; return; }
+  const chips = activeFilters.map(([k, v]) => {
+    const meta = dynamicFieldMap[k];
+    const display = meta && meta.type === 'path' ? v.split('\\').pop() : v;
+    return `<span class="filter-chip">${meta ? meta.label : k}: ${display}<button class="filter-chip-x" onclick="setColFilter('${k}','')">✕</button></span>`;
+  }).join('');
+  chipsRow.innerHTML = chips;
+  chipsRow.style.display = 'flex';
+  const cb = document.getElementById('clear-filters-btn-modal');
+  if (cb) cb.style.display = activeFilters.length ? 'inline-block' : 'none';
+}
+
+function closeTableModal(event) {
+  if (event && event.target !== document.getElementById('table-modal-overlay')) return;
+  document.getElementById('table-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── Report generation (AI-powered via Claude API) ────────────────────────────
+
+async function generateReport() {
+  if (!workItems.length) { toast('Run a query first.', 'error'); return; }
+  const prompt = document.getElementById('report-prompt').value.trim();
+  if (!prompt) { toast('Enter a plain text description of the report you want.', 'error'); return; }
+
+  // Button loading state
+  const genBtn = document.querySelector('[onclick="generateReport()"]');
+  const genIcon = document.getElementById('gen-report-icon');
+  if (genBtn) genBtn.disabled = true;
+  if (genIcon) genIcon.innerHTML = '<span class="spinner"></span>';
+
+  // Remove existing report section if any
+  const old = document.getElementById('ai-report-section');
+  if (old) old.remove();
+
+  const section = document.createElement('div');
+  section.id = 'ai-report-section';
+  section.className = 'report-section';
+  section.innerHTML = `
+    <div class="report-section-header">
+      <span style="font-size:14px;font-weight:600;">📊 ${prompt}</span>
+      <span class="spinner"></span>
+    </div>
+    <div class="report-section-body" id="ai-report-body" style="color:var(--text2);font-size:13px;">Analyzing data…</div>
+  `;
+  document.getElementById('content-scroll').prepend(section);
+  section.scrollIntoView({ behavior: 'smooth' });
+
+  // Build compact data summary for Claude
+  const summary = buildDataSummary();
+
+  try {
+    const apiKey = getAnthropicKey();
+    if (!apiKey) {
+      throw new Error('Please enter your Anthropic API key in the Generate Report section.');
+    }
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: `You are a TFS data analyst. The user will give you a summary of TFS work items and a plain-text report request.
+Parse the request carefully — it may include filtering instructions (e.g. "only Bug type", "exclude Closed state"), aggregation instructions (e.g. "sum of original estimate", "count"), chart preferences, and grouping preferences.
+Return ONLY a valid JSON object (no markdown, no commentary) with this shape:
+{
+  "type": "chart" | "pivot" | "stats" | "multi",
+  "title": "string",
+  "charts": [ { "chartType": "bar"|"doughnut"|"line", "title": "string", "groupBy": "fieldName", "metric": "count"|"originalEstimate"|"remainingWork"|"completedWork", "limit": 10 } ],
+  "pivot": { "rowField": "fieldName", "colField": "fieldName", "valueField": "count"|"originalEstimate"|"remainingWork" },
+  "stats": [ { "label": "string", "field": "originalEstimate"|"remainingWork"|"completedWork"|"count", "agg": "sum"|"avg"|"max"|"min"|"count" } ]
+}
+Only include keys that apply. If the user wants filtering, add a "filters" array: [{"field":"fieldName","value":"filterValue"}] — these will be applied before computing.
+Available field names for this query: ${getAvailableFieldNames()}`,
+        messages: [{ role: 'user', content: `Data summary:\n${summary}\n\nReport request: ${prompt}` }]
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const msg = (errData.error && errData.error.message) || res.statusText;
+      throw new Error(`API ${res.status}: ${msg}`);
+    }
+
+    const data = await res.json();
+    const text = (data.content || []).map(b => b.text || '').join('');
+    let spec;
+    try {
+      spec = JSON.parse(text.replace(/```json|```/g,'').trim());
+    } catch {
+      throw new Error('Could not parse AI response.');
+    }
+
+    renderAIReport(spec, section);
+  } catch (err) {
+    document.getElementById('ai-report-body').textContent = 'Error: ' + err.message;
+    toast('Report generation failed: ' + err.message, 'error');
+  } finally {
+    if (genBtn) genBtn.disabled = false;
+    if (genIcon) genIcon.innerHTML = '✦';
+  }
+}
+
+function buildDataSummary() {
+  const lines = [`Total items: ${workItems.length}`];
+
+  // Numeric sums
+  Object.values(dynamicFieldMap).filter(m => m.type === 'numeric').forEach(meta => {
+    const sum = workItems.reduce((s, w) => s + (w[meta.key] || 0), 0);
+    if (sum > 0) lines.push(`Total ${meta.label}: ${sum.toFixed(1)}h`);
+  });
+
+  // Enum/path counts
+  Object.values(dynamicFieldMap).filter(m => ['enum','path'].includes(m.type)).forEach(meta => {
+    const g = countBy(workItems, meta.key);
+    if (g.length > 0) {
+      lines.push(`By ${meta.label}: ${g.slice(0,8).map(d=>`${d.label}:${d.value}`).join(', ')}`);
+    }
+  });
+
+  // Tags
+  if (dynamicFieldMap['tags']) {
+    const tagCounts = {};
+    workItems.forEach(w => {
+      if (w.tags) w.tags.split(';').forEach(t => { const tt = t.trim(); if (tt) tagCounts[tt] = (tagCounts[tt]||0)+1; });
+    });
+    const topTags = Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`${k}:${v}`).join(', ');
+    if (topTags) lines.push(`Top tags: ${topTags}`);
+  }
+
+  return lines.join('\n');
+}
+
+function getAvailableFieldNames() {
+  return Object.values(dynamicFieldMap).map(m => m.key).join(', ');
+}
+
+function renderAIReport(spec, section) {
+  const header = section.querySelector('.report-section-header');
+  header.innerHTML = `<span style="font-size:14px;font-weight:600;">📊 ${spec.title || 'Report'}</span>
+    <button class="btn btn-secondary btn-sm" onclick="this.closest('.report-section').remove()">✕ Close</button>`;
+
+  const body = document.getElementById('ai-report-body');
+  body.innerHTML = '';
+  destroyReportCharts();
+
+  // Stats
+  if (spec.stats && spec.stats.length) {
+    const sg = document.createElement('div');
+    sg.className = 'stats-bar';
+    sg.style.marginBottom = '16px';
+    spec.stats.forEach(s => {
+      const val = computeStat(s);
+      sg.innerHTML += `<div class="stat-card"><div class="s-label">${s.label}</div><div class="s-value">${val}</div></div>`;
+    });
+    body.appendChild(sg);
+  }
+
+  // Charts
+  if (spec.charts && spec.charts.length) {
+    const cg = document.createElement('div');
+    cg.className = 'charts-grid';
+    spec.charts.forEach((ch, i) => {
+      const id = `ai-ch-${i}`;
+      const card = chartCard(ch.title, id);
+      cg.appendChild(card);
+      body.appendChild(cg);
+      setTimeout(() => renderSpecChart(ch, id, i), 50);
+    });
+  }
+
+  // Pivot
+  if (spec.pivot) {
+    renderPivot(spec.pivot, body);
+  }
+}
+
+let reportCharts = {};
+function destroyReportCharts() {
+  Object.values(reportCharts).forEach(c => c.destroy && c.destroy());
+  reportCharts = {};
+}
+
+function computeStat(s) {
+  if (s.field === 'count' || s.agg === 'count') return workItems.length;
+  const vals = workItems.map(w => w[s.field] || 0).filter(v => v > 0);
+  if (!vals.length) return '0';
+  if (s.agg === 'sum')  return vals.reduce((a,b)=>a+b,0).toFixed(1);
+  if (s.agg === 'avg')  return (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+  if (s.agg === 'max')  return Math.max(...vals).toFixed(1);
+  if (s.agg === 'min')  return Math.min(...vals).toFixed(1);
+  return vals.reduce((a,b)=>a+b,0).toFixed(1);
+}
+
+function renderSpecChart(spec, canvasId, idx) {
+  // groupBy field must exist in dynamicFieldMap or workItems
+  const groupKey = spec.groupBy;
+  const groups = groupBy(workItems, groupKey);
+  let entries = Object.entries(groups).map(([k,v]) => {
+    let val;
+    if (spec.metric === 'count') val = v.length;
+    else val = parseFloat(v.reduce((s,i)=>s+(i[spec.metric]||0),0).toFixed(1));
+    return { label: k, value: val };
+  }).sort((a,b)=>b.value-a.value).slice(0, spec.limit || 10);
+
+  const el = document.getElementById(canvasId);
+  if (!el) return;
+
+  const isMany = entries.length > 5;
+  reportCharts[canvasId] = new Chart(el, {
+    type: spec.chartType || 'bar',
+    data: {
+      labels: entries.map(e => shortLabel(e.label)),
+      datasets: [{ label: spec.metric === 'count' ? 'Count' : 'Hours', data: entries.map(e=>e.value), backgroundColor: PALETTE, borderWidth: 0, borderRadius: 4 }]
+    },
+    options: {
+      indexAxis: spec.chartType === 'bar' && isMany ? 'y' : 'x',
+      plugins: { legend: { labels: { color: '#8b93a8', font:{size:11} } } },
+      scales: spec.chartType === 'doughnut' ? {} : {
+        x: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color:'#2e3548' } },
+        y: { ticks: { color:'#8b93a8', font:{size:11} }, grid: { color:'#2e3548' } }
+      },
+      maintainAspectRatio: false
+    }
+  });
+}
+
+function renderPivot(spec, container) {
+  const { rowField, colField, valueField } = spec;
+  const rows = [...new Set(workItems.map(w => w[rowField] || 'Unknown'))].sort();
+  const cols = [...new Set(workItems.map(w => w[colField] || 'Unknown'))].sort();
+
+  const pivot = {};
+  const rowTotals = {};
+  const colTotals = {};
+  rows.forEach(r => { pivot[r] = {}; rowTotals[r] = 0; cols.forEach(c => { pivot[r][c] = 0; }); });
+  cols.forEach(c => { colTotals[c] = 0; });
+
+  workItems.forEach(w => {
+    const r = w[rowField] || 'Unknown';
+    const c = w[colField] || 'Unknown';
+    const v = valueField === 'count' ? 1 : (w[valueField] || 0);
+    if (pivot[r] && pivot[r][c] !== undefined) {
+      pivot[r][c] += v;
+      rowTotals[r] += v;
+      colTotals[c] = (colTotals[c] || 0) + v;
+    }
+  });
+
+  const grand = Object.values(rowTotals).reduce((s,v)=>s+v,0);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'pivot-wrap';
+  wrap.style.marginTop = '16px';
+  wrap.innerHTML = `<div class="pivot-header"><span class="table-title">Pivot: ${rowField} × ${colField}</span></div>`;
+
+  const scroll = document.createElement('div');
+  scroll.className = 'pivot-scroll';
+
+  const fmt = v => valueField === 'count' ? v : v.toFixed(1);
+
+  let html = `<table><thead><tr><th>${rowField}</th>${cols.map(c=>`<th style="text-align:right;">${shortLabel(c)}</th>`).join('')}<th style="text-align:right;color:var(--accent)">Total</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr><td style="font-weight:500;">${shortLabel(r)}</td>`;
+    cols.forEach(c => { html += `<td style="text-align:right;">${pivot[r][c] > 0 ? fmt(pivot[r][c]) : '—'}</td>`; });
+    html += `<td style="text-align:right;font-weight:500;color:var(--accent)">${fmt(rowTotals[r])}</td></tr>`;
+  });
+  html += `<tr style="border-top:1px solid var(--border2)"><td style="font-weight:600;color:var(--text2)">Total</td>`;
+  cols.forEach(c => { html += `<td style="text-align:right;font-weight:500;color:var(--text2)">${fmt(colTotals[c]||0)}</td>`; });
+  html += `<td style="text-align:right;font-weight:600;color:var(--green)">${fmt(grand)}</td></tr>`;
+  html += `</tbody></table>`;
+
+  scroll.innerHTML = html;
+  wrap.appendChild(scroll);
+  container.appendChild(wrap);
+}
+
+function shortLabel(s) {
+  if (!s) return '—';
+  const last = s.split('\\').pop().split('/').pop();
+  return last.length > 18 ? last.slice(0,18)+'…' : last;
+}
+
+// ── Refresh & Reset ──────────────────────────────────────────────────────────
+
+async function refreshData() {
+  // Pull PAT from input or localStorage
+  const patInput = document.getElementById('pat-input');
+  if (!patInput.value.trim()) {
+    const saved = localStorage.getItem(PAT_KEY);
+    if (saved) patInput.value = saved;
+  }
+  if (!patInput.value.trim()) {
+    toast('No PAT set. Please enter a PAT first.', 'error'); return;
+  }
+
+  // Pull query URL from input or localStorage
+  const queryInput = document.getElementById('query-url');
+  if (!queryInput.value.trim()) {
+    const saved = localStorage.getItem(QUERY_KEY);
+    if (saved) queryInput.value = saved;
+  }
+  if (!queryInput.value.trim()) {
+    toast('No query URL set.', 'error'); return;
+  }
+
+  const icon = document.getElementById('refresh-icon');
+  icon.style.display = 'inline-block';
+  icon.style.animation = 'spin 0.6s linear infinite';
+  try {
+    await runQuery();
+  } finally {
+    icon.style.animation = '';
+    icon.textContent = '↻';
+  }
+}
+
+function resetAll() {
+  if (!confirm('Reset report and loaded data? Your PAT, query URL, and API key will be kept.')) return;
+
+  // Only clear report prompt — keep PAT, query URL, Anthropic key
+  document.getElementById('report-prompt').value = '';
+
+  // Reset data state
+  workItems = [];
+  allFields = [];
+  dynamicFieldMap = {};
+  sortCol = null; sortAsc = true;
+  filterText = '';
+  colFilters = {};
+  _drillFilter = null;
+  _drillState = { canvasId: null, labelIndex: null };
+
+  // Destroy charts
+  destroyCharts();
+  destroyReportCharts();
+
+  // Reset connection status
+  document.getElementById('conn-dot').className = 'status-dot';
+  document.getElementById('conn-text').textContent = 'Click Run Query to reload';
+
+  // Hide panels & buttons
+  document.getElementById('report-panel').style.display = 'none';
+  document.getElementById('export-panel').style.display = 'none';
+  document.getElementById('refresh-btn').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+
+  // Show empty state
+  const content = document.getElementById('content-scroll');
+  content.innerHTML = `
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🔍</div>
+      <h2>Data cleared</h2>
+      <p>Your PAT and query URL are still saved. Hit Run Query to reload fresh data.</p>
+    </div>`;
+
+  // Hide drilldown panel
+  const dp = document.getElementById('chart-drilldown-panel');
+  if (dp) { dp.style.display = 'none'; dp.innerHTML = ''; }
+
+  toast('Data reset. PAT and query URL kept.', 'success');
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSavedSettings();
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const chartOverlay = document.getElementById('chart-modal-overlay');
+      if (chartOverlay.classList.contains('open')) {
+        chartOverlay.classList.remove('open');
+        document.body.style.overflow = '';
+        if (modalChart) { modalChart.destroy(); modalChart = null; }
+        return;
+      }
+      const tableOverlay = document.getElementById('table-modal-overlay');
+      if (tableOverlay && tableOverlay.classList.contains('open')) {
+        tableOverlay.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    }
+  });
+});
+
+// ── Export CSV ───────────────────────────────────────────────────────────────
+
+function exportCSV() {
+  if (!workItems.length) { toast('No data to export.', 'error'); return; }
+  const columns = window._tableColumns || Object.values(dynamicFieldMap);
+  const headers = columns.map(m => m.label);
+  const rows = workItems.map(w => columns.map(m => {
+    const v = w[m.key];
+    if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) {
+      return `"${v.replace(/"/g,'""')}"`;
+    }
+    return v !== undefined ? v : '';
+  }));
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'tfs-query-export.csv';
+  a.click();
+  toast('CSV exported!', 'success');
+}
+</script>
+</body>
+</html>
